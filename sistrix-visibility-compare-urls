@@ -1,0 +1,65 @@
+#!/bin/bash
+
+API_KEY="AyXwVALjzVQ493U9xc3VFCKeNhYPezAbb"
+OUTPUT_STEP=100
+
+if [[ "$#" -ne 3 ]]
+then
+    echo "Illegal number of parameters..."
+    echo "$0 <file with urls> <date1 YYYY-MM-DD> <date2 YYYY-MM-DD>"
+    exit 1
+fi
+
+JQ_BIN=$(which jq)
+if [[ $? -gt 0 ]]
+then
+  echo "please install cli tools jq"
+  exit 2
+fi
+
+CURL_BIN=$(which curl)
+if [[ $? -gt 0 ]]
+then
+  echo "please install cli tools curl"
+  exit 3
+fi
+
+URL_FILE=$1
+DATE_ONE=$2
+DATE_TWO=$3
+
+if [[ ! -f ${URL_FILE} ]]
+then
+  echo "can not read given file: ${URL_FILE}"
+  exit 4
+fi
+
+RESULT_FILE="${URL_FILE}.result.csv"
+
+if [[ -f ${RESULT_FILE} ]]
+then
+  rm ${RESULT_FILE}
+fi
+
+touch ${RESULT_FILE}
+
+TOTAL_URLS=$(wc -l ${URL_FILE} | awk '{ print $1 }')
+echo "start crawling ${TOTAL_URLS} urls..."
+COUNT=0
+TIME_START=$(date +%s)
+for URL in `cat ${URL_FILE}`
+do
+  VALUE_ONE=$(${CURL_BIN} -s "https://api.sistrix.com/domain.sichtbarkeitsindex?api_key=${API_KEY}&format=json&url=${URL}&date=${DATE_ONE}" | ${JQ_BIN} .answer[0].sichtbarkeitsindex[0].value)
+  VALUE_TWO=$(${CURL_BIN} -s "https://api.sistrix.com/domain.sichtbarkeitsindex?api_key=${API_KEY}&format=json&url=${URL}&date=${DATE_TWO}" | ${JQ_BIN} .answer[0].sichtbarkeitsindex[0].value)
+
+  echo "${URL},${VALUE_ONE},${VALUE_TWO}" >> ${RESULT_FILE}
+  ((COUNT++))
+  if [[ $(( COUNT % ${OUTPUT_STEP} )) == 0 ]]
+  then
+    echo "done with: ${COUNT}"
+  fi
+done
+TIME_END=$(date +%s)
+RUNTIME=$((TIME_END - TIME_START))
+echo "...done in ${RUNTIME} seconds."
+echo "results stored in: ${RESULT_FILE}"
